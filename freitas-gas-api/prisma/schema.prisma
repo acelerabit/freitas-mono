@@ -1,0 +1,304 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  DELIVERYMAN
+}
+
+enum TransactionType {
+  ENTRY
+  EXIT
+  TRANSFER
+}
+
+enum TransactionCategory {
+  DEPOSIT
+  SALE
+  EXPENSE
+  INCOME
+  WITHDRAW
+  TRANSFER
+  CUSTOM
+}
+
+enum PaymentMethod {
+  CARTAO
+  CARTAO_CREDITO
+  DINHEIRO
+  FIADO
+  PIX
+  TRANSFERENCIA
+}
+
+enum ProductType {
+  P13
+  P20
+  P45
+}
+
+enum BottleStatus {
+  FULL
+  EMPTY
+  COMODATO
+}
+
+model User {
+  id String @id @default(uuid())
+
+  name                String
+  email               String  @unique
+  password            String?
+  status              Boolean @default(true)
+  avatarUrl           String? @map("avatar_url")
+  acceptNotifications Boolean @default(true) @map("accept_notifications")
+
+  role Role @default(DELIVERYMAN)
+
+  accountAmount Int? @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  notifications          Notification[]
+  transactions           Transaction[]
+  senderUserTransactions Transaction[]  @relation("sender_user")
+
+  @@index([email])
+  @@map("users")
+}
+
+model ExpenseTypes {
+  id String @id @default(uuid())
+
+  name String
+}
+
+model IncomeTypes {
+  id String @id @default(uuid())
+
+  name String
+}
+
+model Notification {
+  id String @id @default(uuid())
+
+  message String
+  read    Boolean @default(false)
+
+  user User? @relation(fields: [userId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  userId    String?  @map("user_id")
+
+  @@map("notifications")
+}
+
+model Product {
+  id     String       @id @default(uuid())
+  type   ProductType
+  status BottleStatus
+
+  price     Int
+  quantity  Int
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  sales            SalesProduct[]
+  productsComodato ProductComodato[]
+
+  @@map("products")
+}
+
+model Customer {
+  id            String   @id @default(uuid())
+  name          String
+  email         String
+  phone         String
+  street        String
+  number        String
+  district      String
+  city          String
+  state         String
+  creditBalance Int      @default(0)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  sales                Sales[]
+  customerWithComodato CustomerWithComodato?
+  collects             Collect[]
+
+  @@map("customers")
+}
+
+model CustomerWithComodato {
+  id String @id @default(uuid())
+
+  quantity Int @default(0)
+
+  customer   Customer? @relation(fields: [customerId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  customerId String?   @unique @map("customer_id")
+
+  products ProductComodato[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+}
+
+model ProductComodato {
+  id String @id @default(uuid())
+
+  product   Product @relation(fields: [productId], references: [id])
+  productId String
+
+  quantity Int
+
+  customerWithComodato   CustomerWithComodato? @relation(fields: [customerWithComodatoId], references: [id])
+  customerWithComodatoId String?               @map("customer_with_comodato_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+}
+
+model BankAccount {
+  id String @id @default(uuid())
+
+  bank               String
+  paymentsAssociated String[]
+
+  createdAt                  DateTime          @default(now()) @map("created_at")
+  transaction                Transaction[]
+  Debt                       Debt[]
+  accountTransferOrigin      AccountTransfer[]
+  accountTransferDestination AccountTransfer[] @relation("destination_account")
+}
+
+model Collect {
+  id String @id @default(uuid())
+
+  quantity Int @default(0)
+
+  customer   Customer @relation(fields: [customerId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  customerId String   @map("customer_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+}
+
+model Sales {
+  id            String        @id @default(uuid())
+  paymentMethod PaymentMethod
+  total         Int
+  createdAt     DateTime      @default(now()) @map("created_at")
+
+  customer   Customer @relation(fields: [customerId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  customerId String   @map("customer_id")
+
+  returned Boolean  @default(false)
+  paid     Boolean?
+
+  transaction   Transaction? @relation(fields: [transactionId], references: [id])
+  transactionId String?
+
+  products SalesProduct[]
+
+  @@map("sales")
+}
+
+model SalesProduct {
+  id        String        @id @default(uuid())
+  saleId    String        @map("sale_id")
+  productId String        @map("product_id")
+  quantity  Int
+  salePrice Int?
+  typeSale  BottleStatus?
+
+  sale    Sales   @relation(fields: [saleId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+
+  @@map("sales_products")
+}
+
+model Transaction {
+  id              String              @id @default(uuid())
+  amount          Int
+  transactionType TransactionType
+  mainAccount     Boolean?
+  category        TransactionCategory
+  createdAt       DateTime            @default(now()) @map("created_at")
+  depositDate     DateTime?           @default(now()) @map("deposit_date")
+  bank            String?
+
+  description String?
+
+  user   User   @relation(fields: [userId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  userId String @map("user_id")
+
+  senderUser   User?   @relation("sender_user", fields: [senderUserId], references: [id])
+  senderUserId String? @map("sender_user_id")
+
+  referenceId    String?
+  customCategory String?
+
+  bankAccount   BankAccount? @relation(fields: [bankAccountId], references: [id])
+  bankAccountId String?
+
+  sales Sales[]
+
+  @@map("transactions")
+}
+
+model AccountTransfer {
+  id String @id @default(uuid())
+
+  originAccount   BankAccount? @relation(fields: [originAccountId], references: [id])
+  originAccountId String?
+
+  destinationAccount   BankAccount? @relation("destination_account", fields: [destinationAccountId], references: [id])
+  destinationAccountId String?
+
+  value Int
+  type  String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("account_transfers")
+}
+
+model Log {
+  id String @id @default(uuid())
+
+  data Json
+
+  @@map("logs")
+}
+
+model Supplier {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  debts     Debt[]   @relation("SupplierDebts")
+}
+
+model Debt {
+  id         String   @id @default(uuid())
+  amount     Float
+  dueDate    DateTime
+  paid       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  supplier   Supplier @relation("SupplierDebts", fields: [supplierId], references: [id])
+  supplierId String
+
+  bankAccount   BankAccount? @relation(fields: [bankAccountId], references: [id])
+  bankAccountId String?
+}

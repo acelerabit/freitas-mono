@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  web:
+    build:
+      context: ../freitas-gas-web
+      dockerfile: Dockerfile
+    image: web:v1
+    ports:
+      - "3000:3000"
+    env_file:
+      - ../freitas-gas-web/.env.production
+    networks:
+      - freitas-network
+  backend:
+    build:
+      context: ../freitas-gas-api
+      dockerfile: Dockerfile
+    image: backend:v1
+    ports:
+      - "5000:5000"
+    env_file:
+      - ../freitas-gas-web/.env
+    networks:
+      - freitas-network
+  database:
+    image: postgres:15
+    container_name: freitas
+    restart: always
+    ports:
+      - 5432:5432
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=$POSTGRES_DB}
+    env_file:
+      - .env
+    volumes:
+      - ./data/pg:/var/lib/postgresql/data
+    networks:
+      - freitas-network
+
+  redis:
+    container_name: freitas-redis
+    image: redis:alpine
+    ports:
+      - 6379:6379
+    networks:
+      - freitas-network
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - freitas-network
+
+volumes:
+  pgadmin_data:
+    driver: local
+  pgdata:
+    driver: local
+
+networks:
+  freitas-network:
+    driver: bridge
